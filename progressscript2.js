@@ -1,130 +1,63 @@
 $(document).ready(function() {
-	
-	//This sets async:false which is NOT okay, but I can't figure out how to do it another way. If anyone can figure it out go for it, but this is how it is right now.
-    loadCommits("71170842",$("#comlistgame"), 10);
     loadCommits("75451699",$("#comlistsite"), 10);
-    //loadCommits("75451699",$("#comlistsite"), 10);
-   
 });
 
-function asnyc(func, param) {
-    setTimeout(function() {
-       func.apply(param); 
-    },0);
-}
-
-
-function loadCommits(singleParam) {
-	var id = singleParam.id;
-	var $element = singleParam.$element;
-	var max = singleParam.max;
-	loadCommits(id,$element, max);
-}
-
-//This is the code in case this never works
-
+var completedCommitMap = [];
 /*
-$.get("https://api.github.com/repositories/71170842/commits", function(val) {
-        //This actually works
-        $commitArray = val;
-        var maxCommits = 10;
-        var commitsString = "";
-        commitsString+="<table class=\"comtable\">";
-        for (var i = 0; i < maxCommits; i++) {
-            commitsString+=("<tr class=\"commit-item\">");
-            name = checkSubs($commitArray[i].commit.author.name) + ", " + formatDate($commitArray[i].commit.author.date);
-            commitsString+=("<td>" + name + "</td>");
-            comMsg = formatMessage($commitArray[i].commit.message);
-            commitsString+=("<td><a href=\"" + $commitArray[i].html_url + "\">" + comMsg + "</a></td>");
-            commitsString+="</tr>";
-        }
-        commitsString+="</table>";
+    format:
         
-        $("#comlistgame").html(commitsString);      //alert($commitArray[0].commit.message);
-       });
-*/
-
-/*
- $.get("https://api.github.com/repositories/75451699/commits", function(val) {
-        //This actually works
-        $commitArray = val;
-        var maxCommits = 10;
-        var commitsString = "";
-        commitsString+="<table class=\"comtable\">";
-        for (var i = 0; i < maxCommits; i++) {
-            commitsString+=("<tr class=\"commit-item\">");
-            name = checkSubs($commitArray[i].commit.author.name) + ", " + formatDate($commitArray[i].commit.author.date);
-            commitsString+=("<td>" + name + "</td>");
-            comMsg = formatMessage($commitArray[i].commit.message);
-            commitsString+=("<td><a href=\"" + $commitArray[i].html_url + "\">" + comMsg + "</a></td>");
-            commitsString+="</tr>";
-        }
-        commitsString+="</table>";
-        $("#comlistsite").html(commitsString);
-        var commit1 = createCommitObject($commitArray[0]);
-        var commit2 = new CommitItem($commitArray[1].commit.message,$commitArray[1].commit.author.name,$commitArray[1].commit.author.date);
-        alert(commit2.compareDate(commit1));
-        //alert($commitArray[0].commit.message);
-       });
-       */
-
-
-
-/* This function takes the repository id, the element to insert
- * the table, and the max rows inserted. It's supposed to iterate
- * through the branches and add all the commits, then sort them by 
- * date from [0] most recent to [.length] oldest. From there it
- * takes the first max_rows and turns them into a table.
- * Right now, that doesn't work. doing /commits/branch only gives
- * the most recent commit instead of a list; so I'm trying to
- * figure out how to get all of the commits from the entire
- * repository then order them. It's very difficult (at least for 
- * me). Good luck if you wanna go try to fix this.
- 
-    A possible solution would be load all commits from main branch, then do other branches. As loading for other branches, dont load 
-    the ones with the same SHA as the ones loaded in the main branch (check $commitObjs to get sha) (the sha isnt included yet but i'll do that soon).
+        completedCommitMap[key] = LoadCommitTask;
  */
+var LoadCommitTask = function(updatesNeeded, element) {
+    this.updatesNeeded = updatesNeeded;
+    this.updates = 0;
+    this.$element = element;
+    this.$commits = [];
+    this.updateTask() = function($commitArray) {
+        updates++;
+        for (var i = 0; i < $commitArray.length; i++) {
+            $commits.push($commitArray[i]);
+        }
+        if(updates>=updatesNeeded) { 
+            $commits = simplifyCommitArrayToMap($commits);
+            //Turn the commit array into a map of commits. This eliminates duplicates
+            $commits = orderCommitObjsFromMap($commits);
+            //Turn the commit map into an array of commits. This allows chronological ordering.
+        }
+    }
+}
 
 function loadCommits(repoId, $element, max) {
-    //Also sort into order
-    //First find branches
-    //Get commits from each branch then order by date
-    //Put top (max) in element
-	//$.ajaxSetup({async:false});
-    $.ajax("https://api.github.com/repositories/" + repoId + "/branches", {
-        success:function(val) {
-        //Retrieved
-        alert("dab");
-			var $branchArray = val;
-			var $commitArray = [];
-		
-			for (var i = 0; i < $branchArray.length; i++) {
-				//Inside branch i
-			
-                $.ajax("https://api.github.com/repositories/" + repoId + "/commits?sha=" + $branchArray[i].name, {success:function(coms) {
-					//At commits for branch i
-                    alert("Sweet");
-					var $branchICommits = coms;
-					//alert($branchICommits[i].commit.author.name);
-					for(var x = 0; x < $branchICommits.length; x++) {
-						$commitArray.push($branchICommits[x]);
-					}
-				
-				}}); 
-			
-			}
-			var $commitObjs = [];
-			//alert("Commit array length: " + $commitArray.length);
-			for(var i = 0; i < $commitArray.length; i++) {
-				$commitObjs.push(createCommitObject($commitArray[i]));
-		}
-        alert("please");
+    //Step one, load branches
+    //var commitTask = null;
+    var $branchArray = null;
+    var $commitArray = [];
+    var req = $.ajax("https://api.github.com/repositories/" + repoId + "/branches", {
+        success: function(data) {
+            //Step two, loadcommits for branches
+            $branchArray = data;
+            alert("Howdy");
+            //commitTask = new LoadCommitTask($branchArray.length,$element);
+        },
+        error: function() {
+            alert("Error loading commits");
+        }
+    });
+    
+    $.when(req).done(function() {
+        alert("Howdy 2, " + $branchArray[0].name);
+            //Load all branches commits into one array
+            loadBranch($branchArray.length-1, $branchArray, $commitArray, repoId);
+    }).then(function() {
+        alert("Golly gee " + $commitArray.length);
+        $commitObjs = [];
+        for(var i = 0; i < $commitArray.length; i++) { 
+            $commitObjs.push(createCommitObject($commitArray[i]));
+        }
         $commitObjs = simplifyCommitArrayToMap($commitObjs);
         $commitObjs = orderCommitObjsFromMap($commitObjs);
-        //This SHOULD get all the commits
         
-        //This should stop when its ordered from [0] youngest to [max] oldest;
-      //  alert("length: " + $commitObjs.length);
+        //Write to element
         var commitsString = "";
         commitsString+="<table class=\"comtable\">";
         if (max > $commitObjs.length) {
@@ -141,14 +74,48 @@ function loadCommits(repoId, $element, max) {
         commitsString+="</table>";
         
         $element.html(commitsString);
-    }, 
-        error:function() {
-        alert("failed!");
-    }});
-    //$.get("https://api.github.com/repositories/" + repoId + "/branches").success(
-	//$.ajaxSetup({async:true});
+    });
+    
 }
 
+function loadBranch(branchNumber, $branchArray, $commitArray, repoId) {
+    if(!(branchNumber < 0)) {
+        alert("Howdy 3 - " + branchNumber);
+        var req = $.ajax("https://api.github.com/repositories/" + repoId + "/commits?sha=" + $branchArray[branchNumber].name, {
+            success: function(data) {
+                var $branchCommits = data;
+                //Array
+                for(var i = 0; i < $branchCommits.length; i++) {
+                    $commitArray.push($branchCommits[i]);
+                }
+                alert("This should be before Cowboys");
+            },
+            
+            error: function() {
+                alert("Error loading branch " + branchNumber);
+            }
+        }).done(function() {
+            alert("Cowboys");
+           loadBranch(branchNumber-1,$branchArray,$commitArray);
+        });
+    }
+}
+
+function loadBranchlist() {
+    var $ba = null;
+    $.ajax("https://api.github.com/repositories/" + "75451699" + "/branches", {
+        success: function(val) {
+            $ba = val;
+        }
+    }).done(function() {
+        return $ba;
+    });
+    
+}
+
+
+
+/*    D E F A U L T  F U N C T I O N S    */
 
 function orderCommitObjsFromMap($commitsMap) {
     //YOu know what to do/
